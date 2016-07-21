@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 # quick and dirty way of doing configuration files
-CONFIG_VARS = ('DIRS', 'DBS', 'TTL', 'BASE_URL', 'ENV', 
+CONFIG_VARS = ('DIRS', 'DBS_MYSQL', 'DBS_POSTGRES', 'TTL', 'BASE_URL', 'ENV', 
                'DUP_OPTIONS', 'SQL_OPTIONS', 'TMP_DIR')
 
 def read_config(path):
@@ -23,8 +23,14 @@ def get_envs():
 def create_mysqldump_tmp_folder(out):
     return 'mkdir -p %s' % '/'.join(out.split('/')[:-1])
 
+def create_pgdump_tmp_folder(out):
+    return 'mkdir -p %s' % '/'.join(out.split('/')[:-1])
+
 def get_mysqldump_cmd(dbname, out):
     return 'mysqldump %s -r %s %s' % (SQL_OPTIONS, out, dbname)
+
+def get_pgdump_cmd(dbname, out):
+    return 'sudo -u postgres pg_dump %s > %s' % (dbname, out)
 
 def get_duplicity_cmd(source_dir, turl):
     ttl = re.match('(^\d+)(.*)', TTL)
@@ -43,7 +49,7 @@ def get_target_url(path):
 def cleanup():
     def get_cleanup_cmd(turl):
         return '%s duplicity remove-older-than %s %s --force %s' % (get_envs(), TTL, DUP_OPTIONS, turl)
-    for i, o in DBS + DIRS:
+    for i, o in DBS_MYSQL + DBS_POSTGRES + DIRS:
         o = remove_first_slash(o)
         call(get_cleanup_cmd(get_target_url(o)))
 
@@ -51,11 +57,18 @@ def remove_first_slash(path):
     return path[1:] if path.startswith('/') else path
     
 def backup_dbs():
-    for i, o in DBS:
+    for i, o in DBS_MYSQL:
         o = remove_first_slash(o)
         out = os.path.join(TMP_DIR, o)
         call(create_mysqldump_tmp_folder(out))
         call(get_mysqldump_cmd(i, out))
+        call(get_duplicity_cmd(out, get_target_url(o)))
+
+    for i, o in DBS_POSTGRES:
+        o = remove_first_slash(o)
+        out = os.path.join(TMP_DIR, o)
+        call(create_pgdump_tmp_folder(out))
+        call(get_pgdump_cmd(i, out))
         call(get_duplicity_cmd(out, get_target_url(o)))
         
 def backup_files():
@@ -66,7 +79,7 @@ def backup_files():
 def get_stats():
     def get_list_cmd(turl):
         return '%s duplicity collection-status %s %s' % (get_envs(), DUP_OPTIONS, turl)
-    for i, o in DBS + DIRS:
+    for i, o in DBS_POSTGRES + DBS_MYSQL + DIRS:
         o = remove_first_slash(o)
         call(get_list_cmd(get_target_url(o)))
 
@@ -76,7 +89,7 @@ def run(config_path):
     print '1) Cleaning up files older than "%s" ...' % TTL
     cleanup()
     print '#' * 80
-    print '2) Backing up databases "%s" ...' % ' '.join(d[0] for d in DBS)
+    print '2) Backing up databases "%s" ...' % ' '.join(d[0] for d in DBS_MYSQL + DBS_POSTGRES)
     backup_dbs()
     print '#' * 80
     print '3) Backing up directories "%s" ...' % ' '.join(d[0] for d in DIRS)

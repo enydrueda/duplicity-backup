@@ -2,8 +2,12 @@
 DIRS = [('source_path_1', 'target_1'),
         ('source_path_n', 'target_n')]
 
-# list of databases to backup
-DBS = [('db_name_1', 'target_1'),
+# list of mysql databases to backup
+DBS_MYSQL = [('db_name_1', 'target_1'),
+       ('db_name_n', 'target_n')]
+
+# list of postgres databases to backup
+DBS_POSTGRES = [('db_name_1', 'target_1'),
        ('db_name_n', 'target_n')]
 
 # how long to keep each archive 
